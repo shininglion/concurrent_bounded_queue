@@ -23,6 +23,8 @@
 
 #include <vector>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 
 namespace dt
@@ -30,17 +32,28 @@ namespace dt
     // Concurrent bounded queue is a fixed-size and thread-safe queue that allows multiple threads reading/writing simultaneously.
     // The following class provides a lock-free implemetation
     template <typename T>
-    class ConcurrentBoundedQueueLF
+    class ConcurrentBoundedQueue
     {
     public:
         typedef T value_type;
         typedef T& reference;
         typedef const T& const_referece;
 
-        ConcurrentBoundedQueueLF(const size_t desired_size);
-        ~ConcurrentBoundedQueueLF() = default;
-        ConcurrentBoundedQueueLF(const ConcurrentBoundedQueueLF&) = delete;
-        ConcurrentBoundedQueueLF& operator= (const ConcurrentBoundedQueueLF&) = delete;
+        ConcurrentBoundedQueue(const size_t desired_size);
+        ~ConcurrentBoundedQueue() = default;
+        ConcurrentBoundedQueue(const ConcurrentBoundedQueue&) = delete;
+        ConcurrentBoundedQueue& operator= (const ConcurrentBoundedQueue&) = delete;
+
+        // Maximum number of values that the queue can hold.
+        // Equivalent to the value 'desired_size' given in constructor
+        inline size_t capacity() const noexcept { return storage_capacity; }
+        // reutnr the number of values currently held by the queue
+        size_t size() const noexcept;
+        // return true if the queue held no value; false otherwise
+        bool empty() const noexcept;
+        // return true if the queue cannot push any data; false otherwise
+        bool full() const noexcept;
+        void clear() noexcept;
 
         /****************************************************************************************
          * Following functions are blocking calls, and calling thread will wait until available *
@@ -53,7 +66,7 @@ namespace dt
         void pop(T& dest);
         // Waits until size < capacity, and then pushes a new element into the queue. The new element is constructed with given arguments.
         template <typename ... Args>
-        void emplace(Args&& ... args);
+        inline void emplace(Args&& ... args);
 
         /**********************************************************************************************************************
          * Following functions are non-blocking calls, and calling thread can continue no matter current call success or fail *
@@ -69,20 +82,19 @@ namespace dt
         // If size < capacity, pushes a new element into the queue. The new element is constructed with given arguments.
         // Return value: true if a new element was pushed; false otherwise.
         template <typename ... Args>
-        bool try_emplace(Args&& ... args);
-
-        // reutnr the number of values currently held by the queue
-        size_t size() const noexcept;
-        // Maximum number of values that the queue can hold.
-        // Equivalent to the value 'desired_size' given in constructor
-        size_t capacity() const noexcept;
-        // return true if the queue held no value; false otherwise
-        size_t empty() const noexcept;
-        void clear();
+        inline bool try_emplace(Args&& ... args);
 
     private:
-        std::vector<T>  m_storage;
-        std::atomic_int m_head, m_tail;
+        typedef std::lock_guard<std::recursive_mutex> lock_type;
+
+        inline void update_ptr();
+
+        std::vector<T>                  storage;
+        std::atomic_size_t              head, tail, storage_capacity, base_value;
+        mutable std::recursive_mutex    head_mutex, tail_mutex;
+        std::mutex                      read_mutex, write_mutex;
+        std::condition_variable         read_cv, write_cv;
+        std::atomic_bool                end_signal;
     };
 }
 

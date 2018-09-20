@@ -5,7 +5,7 @@ BIN			:= cbqueue
 all: $(BIN)
 
 $(BIN): main.cpp cbqueue.h cbqueue.hpp
-	$(CXX) $(CXXFLAGS) -o $@ $<
+	$(CXX) $(CXXFLAGS) -o $@ $< -lpthread
 
 clean:
 	rm -f $(BIN)
