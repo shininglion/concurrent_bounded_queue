@@ -30,7 +30,6 @@
 namespace dt
 {
     // Concurrent bounded queue is a fixed-size and thread-safe queue that allows multiple threads reading/writing simultaneously.
-    // The following class provides a lock-free implemetation
     template <typename T>
     class ConcurrentBoundedQueue
     {
